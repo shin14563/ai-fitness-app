@@ -1,36 +1,70 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Fitness Squad
 
-## Getting Started
+AIによる姿勢検知機能を用いた、招待制のグループ単位フィットネス・トラッキングWebアプリケーションです。
 
-First, run the development server:
+## 概要
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+このアプリケーションは、PCやスマートフォンのカメラから利用者の姿勢（骨格）をリアルタイムに検知し、「スクワット」「腕立て伏せ」「腹筋」「プランク」の回数や秒数を自動でカウントします。
+記録したデータはバックグラウンドでクラウド（Supabase）に保存され、参加しているグループ（Squad）のメンバーのアクティビティフィードにリアルタイムで共有されます。
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+> **⚠️ 注意事項 (ステータス: 未検証)**  
+> 現在、PCブラウザ上でのアルゴリズム実装は完了していますが、**実際のユーザーの動きを用いた厳密な動作テスト（スマホ等でのカメラの挙動、確実な回数カウントの精度検証）は未実施** の状態です。今後のテストを通じて、判定角度などのチューニングが必要です。
+>
+> また、当初予定していた「1日1回のランダムなお題配信（BeReal風のプッシュ通知機能）」については、Webアプリではなくネイティブのスマホアプリ（iOS/Android）として実装するほうがUXに優れるため、現在は**実装を一旦保留**としています。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 使い方・機能説明
 
-## Learn More
+### 1. アカウント登録（招待制）
+このアプリは「完全招待制」となっています。サインアップするには、事前にデータベース（Supabase）で発行された**招待トークン**が必要です。
 
-To learn more about Next.js, take a look at the following resources:
+1. `/register`（登録画面）へアクセスします。
+2. 管理者から受け取った「招待トークン」と、表示名、メールアドレス、パスワードを入力して登録します。
+3. （※ 招待トークンの発行：管理者がDBの `invitations` テーブルに任意のトークン文字列と対象メールアドレスを手動でINSERTする必要があります）
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 2. メインダッシュボード（Workout）
+ログインに成功すると、メイン画面が表示されます。画面は大きく2つのカラムに分かれています。
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+#### A: AI TRACKING（姿勢検知カメラ）
+画面左側には、ユーザーのデバイス（PC/スマホ）のカメラ映像が表示され、AI（MediaPipe Pose）が骨格をトラッキングします。
 
-## Deploy on Vercel
+- **エクササイズの選択**: 「スクワット」「腕立て伏せ」「腹筋」「プランク」の4つから、今から行う運動を選択します。
+- **リアルタイム判定**: 画面上の赤い点と線（骨格）があなたを認識し、特定の角度（例えばスクワットなら深くしゃがむなど）に達すると、回数（Reps）が自動的にカウントアップされます。プランクの場合は、体が一直線になっているあいだ秒数（Timer）が加算されます。
+- **自動保存**: スクワット等の回数系は「5回ごと」、プランクなどの静止系は「10秒ごと」に、自動的にセッション記録としてデータベースに保存されます。
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+#### B: Squad アクティビティ（グループとフィード）
+画面右側は、仲間とモチベーションを高め合うための機能です。
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **あなたのSquad**: 所属しているグループタグが表示されます。
+- **グループの作成・参加**:
+  - 新しいグループを作りたい場合は、好きな名前を入力して「**作成**」を押します。すると、共有用の**グループID（UUID）**が発行されます。
+  - すでに友達が作ったグループに入りたい場合は、その「グループID」を入力して「**参加**」を押します。
+- **フィード（タイムライン）**:
+  - あなたや、同じグループのメンバーが運動（5回以上のセッションなど）を達成すると、「誰が、何を達成したか」がリアルタイムに表示されます。
+  - *セキュリティ*: Row Level Security (RLS) により、自分が所属しているグループのメンバーの記録しか見ることができないように守られています。
+
+---
+
+## 技術スタック
+- **Frontend**: Next.js (App Router), React, Tailwind CSS
+- **AI/CV**: `@mediapipe/tasks-vision`, `react-webcam`
+- **Backend / Database**: Supabase (PostgreSQL, Auth, RLS, Edge Functions)
+- **Deployment**: Vercel
+
+## 開発者向けセットアップ
+
+1. リポジトリをクローンし、依存関係をインストールします。
+   ```bash
+   npm install
+   ```
+2. `.env.local` に Supabase の接続情報を設定します。
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+3. 開発サーバーを起動します。
+   ```bash
+   npm run dev
+   ```
+4. （初回のみ）`database_setup.sql` を Supabase の SQL Editor で実行し、テーブル構築とRLSポリシーの設定を行ってください。
